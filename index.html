@@ -2,6 +2,7 @@
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2a0a2e">
 <title>তোর জন্য 🎂</title>
@@ -56,6 +57,42 @@
   .btn.ghost{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);box-shadow:none;animation:none;font-weight:400}
   @keyframes btnPulse{50%{box-shadow:0 10px 38px rgba(255,92,138,.8),inset 0 1px 0 rgba(255,255,255,.4)}}
   [hidden]{display:none!important}
+
+  /* ---------- PIN gate ---------- */
+  #s-gate{gap:12px}
+  .lock{
+    font-size:clamp(54px,16vw,72px);line-height:1;
+    filter:drop-shadow(0 0 22px rgba(255,217,138,.7));animation:float 3.4s ease-in-out infinite;
+  }
+  .lock.open{animation:unlock .8s ease forwards}
+  @keyframes unlock{0%{transform:scale(1) rotate(0)}40%{transform:scale(1.3) rotate(-12deg)}100%{transform:scale(1.15) rotate(0)}}
+  .pin{position:relative;display:flex;justify-content:center;gap:5px;margin-top:6px}
+  .pin .box{
+    width:clamp(28px,8.6vw,40px);height:clamp(44px,12.5vw,54px);border-radius:12px;display:grid;place-items:center;
+    font-family:var(--display);font-size:clamp(20px,6vw,27px);line-height:1;color:var(--gold);
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,217,138,.35);
+    transition:border-color .2s,background .2s,box-shadow .2s;
+  }
+  .pin .box.sep{margin-right:10px}
+  .pin .box.now{border-color:var(--gold);box-shadow:0 0 0 3px rgba(255,217,138,.2)}
+  .pin .box.fill{background:rgba(255,217,138,.16);border-color:rgba(255,217,138,.8)}
+  .pin.bad .box{border-color:#ff7b8f;background:rgba(255,92,138,.2)}
+  .pin.good .box{
+    background:radial-gradient(circle at 35% 30%,#fff1b8,#e8b94a 70%);color:#4a1030;
+    border-color:#fff1b8;box-shadow:0 0 18px rgba(255,217,138,.8);
+  }
+  .pin.shake{animation:shake .5s}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}15%{transform:translateX(-9px)}30%{transform:translateX(8px)}
+    45%{transform:translateX(-6px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}
+  }
+  #pinInput{
+    position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0;
+    background:transparent;color:transparent;caret-color:transparent;cursor:text;
+    -webkit-user-select:text;user-select:text;
+  }
+  .gmsg{min-height:3.4em;font-size:clamp(13.5px,3.8vw,15.5px);line-height:1.7;color:var(--gold);max-width:88vw}
+  .gmsg.err{color:#ffb3c1}
 
   /* ---------- intro ---------- */
   .bigheart{
@@ -185,7 +222,7 @@
     border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);
     -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-size:18px;color:#fff;cursor:pointer}
 
-  @media (prefers-reduced-motion:reduce){.bigheart,#cake,#bar,.btn,.hb,.calcrown{animation:none}}
+  @media (prefers-reduced-motion:reduce){.bigheart,#cake,#bar,.btn,.hb,.calcrown,.lock{animation:none}}
   @media (max-height:700px){#typed{min-height:400px}#cake{width:min(60vw,240px)}.inscr{font-size:14.5px;line-height:1.7}}
 </style>
 </head>
@@ -195,8 +232,21 @@
 <canvas id="fx"></canvas>
 <button id="mute" hidden aria-label="Toggle music">🔊</button>
 
+<!-- 0. PIN GATE -->
+<section class="scene active" id="s-gate">
+  <p class="eyebrow" id="gTop"></p>
+  <div class="lock" id="gLock">🔒</div>
+  <h2 class="title" id="gHead"></h2>
+  <p class="sub" id="gSub"></p>
+  <div class="pin" id="pin">
+    <input id="pinInput" type="tel" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="24" aria-label="জন্মতারিখ">
+  </div>
+  <p class="gmsg" id="gMsg" aria-live="polite"></p>
+  <button class="btn" id="gBtn"></button>
+</section>
+
 <!-- 1. INTRO -->
-<section class="scene active" id="s-intro">
+<section class="scene" id="s-intro">
   <p class="eyebrow">ছোট্ট একটা জিনিস বানিয়েছি</p>
   <button class="bigheart" id="open" aria-label="Open">❤</button>
   <h2 class="title" id="introName"></h2>
@@ -302,7 +352,21 @@
    ========================================================= */
 const CONFIG = {
   her:  "ললন্তিকা",       // her name (the link can override: ?to=...)
-  music: "https://pixabay.com/music/small-emotions-piano-classical-music-348133/",               // e.g. "song.mp3" (put the file in the same folder). "" = no music
+  music: "",               // e.g. "song.mp3" (upload the mp3 to the same folder as index.html). "" = no music
+
+  // PIN gate (first screen). Only this PIN opens the page.
+  gate: {
+    pin:        "30121999",
+    top:        "🔒 শুধু একজনের জন্য",
+    heading:    "এটা শুধু তোর জন্য",
+    sub:        "তোর জন্মতারিখটা লিখলেই খুলবে (DDMMYYYY)",
+    button:     "খোল 💌",
+    short:      "৮টা সংখ্যা লিখতে হবে 🤍",
+    wrong:      "উঁহু, মিলছে না 🤍 আরেকবার চেষ্টা কর",
+    strict:     "মনে হচ্ছে এই মেসেজটা তোর জন্য নয় 🙈 তুই যদি ললন্তিকা হোস, তাহলে নিজের জন্মতারিখটা (DDMMYYYY) ভেবে আবার লেখ।",
+    strictAfter: 3,          // after this many wrong tries, the firmer message is shown
+    ok:         "ঠিক আছে, এসে গেছিস ✨"
+  },
 
   // December calendar scene (the highlighted date is 30 December 2026)
   calendar: {
@@ -468,7 +532,7 @@ $('mute').onclick = () => { if(!audio) return; audio.muted = !audio.muted; $('mu
 function startMusic(){ if(audio){ audio.play().catch(()=>{}); $('mute').hidden = false; } }
 
 /* ---------------- scene flow ---------------- */
-const order = ['intro','cal','cake','choc','letter','reasons','final'];
+const order = ['gate','intro','cal','cake','choc','letter','reasons','final'];
 let cur = 0;
 const enter = {};
 function show(id){
@@ -476,6 +540,74 @@ function show(id){
   if(enter[id]) enter[id]();
 }
 function next(){ buzz(); show(order[++cur]); }
+
+/* ---------------- PIN gate ---------------- */
+const G = CONFIG.gate;
+$('gTop').textContent = G.top;
+$('gHead').textContent = G.heading;
+$('gSub').textContent = G.sub;
+$('gBtn').textContent = G.button;
+
+const pinWrap = $('pin'), pinInput = $('pinInput'), gMsg = $('gMsg');
+const pinBoxes = [];
+for(let i=0;i<8;i++){
+  const d = document.createElement('div');
+  d.className = 'box' + (i===1 || i===3 ? ' sep' : '');
+  pinWrap.insertBefore(d, pinInput);
+  pinBoxes.push(d);
+}
+// accepts English or Bengali digits, ignores anything else, max 8 digits
+const normPin = s => s.replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d)).replace(/\D/g,'').slice(0,8);
+
+function renderPin(){
+  const v = pinInput.value, focused = document.activeElement === pinInput;
+  pinBoxes.forEach((bx,i) => {
+    bx.textContent = v[i] ? toBn(v[i]) : '';
+    bx.classList.toggle('fill', !!v[i]);
+    bx.classList.toggle('now', focused && i === v.length && v.length < 8);
+  });
+}
+function say(text, err){ gMsg.textContent = text; gMsg.classList.toggle('err', !!err); }
+
+let tries = 0, checking = false, unlocked = false;
+function checkPin(){
+  if(unlocked || checking) return;
+  const v = pinInput.value;
+  if(v.length < 8){ say(G.short, true); return; }
+  checking = true;
+  if(v === G.pin) pinOk(); else pinBad();
+}
+function pinBad(){
+  tries++;
+  pinWrap.classList.add('bad','shake'); buzz([60,40,60]);
+  say(tries >= G.strictAfter ? G.strict : G.wrong, true);
+  setTimeout(() => {
+    pinInput.value = ''; renderPin();
+    pinWrap.classList.remove('bad','shake');
+    checking = false; pinInput.focus();
+  }, 800);
+}
+function pinOk(){
+  unlocked = true;
+  pinWrap.classList.add('good');
+  $('gLock').textContent = '🔓'; $('gLock').classList.add('open');
+  say(G.ok, false); buzz([30,40,60,40,90]);
+  pinInput.blur();
+  sparkBurst(W/2, H*.3); setTimeout(() => sparkBurst(W*.3, H*.4), 200); setTimeout(() => sparkBurst(W*.7, H*.4), 350);
+  tapHearts(W/2, H*.35, 16);
+  setTimeout(next, 1500);
+}
+pinInput.addEventListener('input', () => {
+  pinInput.value = normPin(pinInput.value); renderPin();
+  if(pinInput.value.length === 8) setTimeout(checkPin, 280);
+});
+pinInput.addEventListener('focus', renderPin);
+pinInput.addEventListener('blur', renderPin);
+$('gBtn').onclick = checkPin;
+pinInput.addEventListener('keydown', e => { if(e.key === 'Enter') checkPin(); });
+$('s-gate').addEventListener('click', e => { if(!unlocked && !e.target.closest('#gBtn')) pinInput.focus(); });
+renderPin();
+setTimeout(() => { try{ pinInput.focus(); }catch(e){} }, 700);
 
 // intro
 $('open').onclick = () => {
