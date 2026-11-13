@@ -354,6 +354,9 @@ const CONFIG = {
   her:  "ললন্তিকা",       // her name (the link can override: ?to=...)
   music: "Project_Audio.mp3.mp3",               // e.g. "song.mp3" (upload the mp3 to the same folder as index.html). "" = no music
 
+  // Owner alerts: topic name you subscribed to in the ntfy app. "" = turn alerts off
+  notifyTopic: "Lalantika_Sweetu_KitKat",
+
   // PIN gate (first screen). Only this PIN opens the page.
   gate: {
     pin:        "30121999",
@@ -430,6 +433,53 @@ document.querySelectorAll('.hername').forEach(el => el.textContent = her);
 $('introName').textContent = her + ', এটা তোর জন্য';
 $('wish').textContent = CONFIG.wish;
 $('fromLine').textContent = CONFIG.signoff;
+
+/* =========================================================
+   🔔 Owner alerts via ntfy (silent: nothing shows on her screen)
+   Add ?test to the link to mark your own test alerts with [TEST]
+   ========================================================= */
+const TEST = q.has('test');
+const UA = navigator.userAgent;
+const DEVICE = /iPhone|iPad/i.test(UA) ? 'iPhone' : /Android/i.test(UA) ? 'Android' : 'Computer';
+
+// active time = only while the page is visible on screen
+let _acc = 0, _since = document.hidden ? null : performance.now();
+const activeMs = () => _acc + (_since === null ? 0 : performance.now() - _since);
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){ if(_since !== null){ _acc += performance.now() - _since; _since = null; } }
+  else if(_since === null){ _since = performance.now(); }
+});
+
+const nowIST = () => new Date().toLocaleString('en-IN', {timeZone:'Asia/Kolkata', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
+const fmtSec = s => s < 60 ? s + ' সেকেন্ড' : Math.floor(s/60) + ' মিনিট ' + (s % 60) + ' সেকেন্ড';
+const sentOnce = {};
+function ping(text, important, key){
+  if(!CONFIG.notifyTopic) return;
+  if(key){ if(sentOnce[key]) return; sentOnce[key] = true; }
+  try{
+    fetch('https://ntfy.sh/' + encodeURIComponent(CONFIG.notifyTopic) + '?priority=' + (important ? 4 : 2), {
+      method:'POST', keepalive:true,
+      body: (TEST ? '[TEST] ' : '') + text + '\n' + nowIST() + ' IST • ' + DEVICE
+    }).catch(()=>{});
+  }catch(e){}
+}
+
+const LABEL = {gate:'PIN পেজ', intro:'হার্ট', cal:'ক্যালেন্ডার', cake:'কেক', choc:'KitKat', letter:'চিঠি', reasons:'কার্ড', final:'ফাইনাল'};
+let curScene = 'gate', sceneStart = 0, maxCard = 0, finalAt = null, lastSum = -1;
+const inScene = () => Math.round((activeMs() - sceneStart) / 1000);
+
+// summary when she leaves / locks / switches away after reaching the final page
+function finalSummary(){
+  if(finalAt === null) return;
+  const secs = Math.round((activeMs() - finalAt) / 1000);
+  if(secs === lastSum) return;
+  lastSum = secs;
+  ping('ফাইনাল পেজ ছেড়েছে 👋\nফাইনাল পেজে ছিল: ' + fmtSec(secs) + (secs >= 10 ? ' ✅ পুরো লেখা দেখেছে' : ' ⚠️ পুরোটা পড়েনি') + '\nমোট সময়: ' + fmtSec(Math.round(activeMs() / 1000)), true);
+}
+document.addEventListener('visibilitychange', () => { if(document.hidden) finalSummary(); });
+addEventListener('pagehide', finalSummary);
+
+ping('পেজ খুলেছে 🔒 (PIN পেজ)', false, 'open');
 
 /* ---------------- canvases ---------------- */
 const bg = $('bg'), fx = $('fx'), b = bg.getContext('2d'), f = fx.getContext('2d');
@@ -536,6 +586,17 @@ const order = ['gate','intro','cal','cake','choc','letter','reasons','final'];
 let cur = 0;
 const enter = {};
 function show(id){
+  // owner alerts: time spent on the scene she just left
+  const secs = inScene(), prev = curScene;
+  sceneStart = activeMs(); curScene = id;
+  const cards = prev === 'reasons' ? '\nকার্ড দেখেছে: ' + maxCard + '/' + CONFIG.reasons.length : '';
+  if(id === 'final'){
+    ping('ফাইনাল পেজে পৌঁছেছে 🎂\n(' + LABEL[prev] + ' ➜ ফাইনাল • ' + fmtSec(secs) + ')' + cards + '\nমোট সময়: ' + fmtSec(Math.round(activeMs() / 1000)), true, 'final');
+    finalAt = activeMs();
+  } else if(id !== 'intro'){
+    ping(LABEL[prev] + ' ➜ ' + LABEL[id] + ' • ' + fmtSec(secs) + cards, false);
+  }
+
   document.querySelectorAll('.scene').forEach(s => s.classList.toggle('active', s.id === 's-'+id));
   if(enter[id]) enter[id]();
 }
@@ -579,6 +640,7 @@ function checkPin(){
 }
 function pinBad(){
   tries++;
+  ping('ভুল PIN দিয়েছে ❌ (' + tries + ' বার)', false);
   pinWrap.classList.add('bad','shake'); buzz([60,40,60]);
   say(tries >= G.strictAfter ? G.strict : G.wrong, true);
   setTimeout(() => {
@@ -589,6 +651,7 @@ function pinBad(){
 }
 function pinOk(){
   unlocked = true;
+  ping('PIN ঠিক হয়েছে 🔓\n' + (tries ? tries + ' বার ভুলের পর' : 'প্রথমবারেই') + ' • PIN পেজে ' + fmtSec(inScene()), true, 'pinok');
   pinWrap.classList.add('good');
   $('gLock').textContent = '🔓'; $('gLock').classList.add('open');
   say(G.ok, false); buzz([30,40,60,40,90]);
@@ -661,6 +724,7 @@ enter.cal = () => {
 let blown = false;
 $('cake').onclick = () => {
   if(blown) return; blown = true; buzz([30,40,60]);
+  ping('মোমবাতি নিভিয়েছে 🕯️ (কেক পেজে ' + fmtSec(inScene()) + ' পর)', false);
   $('cake').classList.add('out');
   $('cakeHint').textContent = 'উইশটা সত্যি হবে, দেখিস 💫';
   confetti(160);
@@ -673,6 +737,7 @@ $('cakeNext').onclick = next;
 let snapped = false;
 $('bar').onclick = () => {
   if(snapped) return; snapped = true; buzz([20,30,50]);
+  ping('KitKat ভেঙেছে 🍫 (' + fmtSec(inScene()) + ' পর)', false);
   $('bar').classList.add('snapped');
   $('barHint').hidden = true;
   const m = $('breakMsg'); m.textContent = CONFIG.barMessage; m.hidden = false;
@@ -686,13 +751,19 @@ const fullLetter = CONFIG.letter.replace(/\{her\}/g, her).replace(/\{letterSign\
 const segs = (window.Intl && Intl.Segmenter)
   ? Array.from(new Intl.Segmenter('bn',{granularity:'grapheme'}).segment(fullLetter), s => s.segment)
   : Array.from(fullLetter);
-let typing = null;
+let typing = null, letterDone = false;
 enter.letter = () => {
   const el = $('typed'); el.textContent = ''; el.classList.add('typing'); $('letterNext').hidden = true;
   let i = 0, out = '';
-  const done = () => { clearInterval(typing); el.textContent = fullLetter; el.classList.remove('typing'); $('letterNext').hidden = false; $('skipHint').hidden = true; };
-  typing = setInterval(() => { out += segs[i++]; el.textContent = out; if(i >= segs.length) done(); }, 45);
-  $('paper').onclick = done;
+  const done = (skipped) => {
+    clearInterval(typing); el.textContent = fullLetter; el.classList.remove('typing'); $('letterNext').hidden = false; $('skipHint').hidden = true;
+    if(!letterDone){
+      letterDone = true;
+      ping(skipped ? 'চিঠি ট্যাপ করে স্কিপ করেছে ⏭️ (' + fmtSec(inScene()) + ' পর)' : 'চিঠি শেষ পর্যন্ত পড়েছে 💌 (' + fmtSec(inScene()) + ')', false);
+    }
+  };
+  typing = setInterval(() => { out += segs[i++]; el.textContent = out; if(i >= segs.length) done(false); }, 45);
+  $('paper').onclick = () => done(true);
 };
 $('letterNext').onclick = next;
 
@@ -700,6 +771,7 @@ $('letterNext').onclick = next;
 let ri = 0;
 function renderReason(first){
   const card = $('rcard');
+  maxCard = Math.max(maxCard, ri+1);
   $('rnum').textContent = toBn(ri+1);
   $('rtext').textContent = CONFIG.reasons[ri];
   card.classList.remove('flip'); void card.offsetWidth; card.classList.add('flip');
