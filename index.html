@@ -658,7 +658,7 @@ function pinOk(){
   pinInput.blur();
   sparkBurst(W/2, H*.3); setTimeout(() => sparkBurst(W*.3, H*.4), 200); setTimeout(() => sparkBurst(W*.7, H*.4), 350);
   tapHearts(W/2, H*.35, 16);
-  setTimeout(next, 5000);
+  setTimeout(next, 3000);
 }
 pinInput.addEventListener('input', () => {
   pinInput.value = normPin(pinInput.value); renderPin();
