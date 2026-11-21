@@ -357,9 +357,10 @@ const CONFIG = {
   // Owner alerts: topic name you subscribed to in the ntfy app. "" = turn alerts off
   notifyTopic: "Lalantika_Sweetu_KitKat",
 
-  // PIN gate (first screen). Only this PIN opens the page.
+  // PIN gate (first screen). Only the PIN matching this hash opens the page.
+  // ⚠️ Follow Step 1 in the instructions to generate this value yourself — do NOT type the plain PIN here.
   gate: {
-    pin:        "30121999",
+    pinHash:    "7eca51ebf03e4ac8fdef2307b79f7bda62026a25fe3fe2be5a13f93c63228664",
     top:        "🔒 শুধু একজনের জন্য",
     heading:    "এটা শুধু তোর জন্য",
     sub:        "তোর জন্মতারিখটা লিখলেই খুলবে (DDMMYYYY)",
@@ -630,13 +631,20 @@ function renderPin(){
 }
 function say(text, err){ gMsg.textContent = text; gMsg.classList.toggle('err', !!err); }
 
+// hashes text with SHA-256 and returns it as a hex string (used to check the PIN without ever storing it as plain text)
+async function sha256(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
 let tries = 0, checking = false, unlocked = false;
-function checkPin(){
+async function checkPin(){
   if(unlocked || checking) return;
   const v = pinInput.value;
   if(v.length < 8){ say(G.short, true); return; }
   checking = true;
-  if(v === G.pin) pinOk(); else pinBad();
+  const hash = await sha256(v);
+  if(hash === G.pinHash) pinOk(); else pinBad();
 }
 function pinBad(){
   tries++;
@@ -658,7 +666,8 @@ function pinOk(){
   pinInput.blur();
   sparkBurst(W/2, H*.3); setTimeout(() => sparkBurst(W*.3, H*.4), 200); setTimeout(() => sparkBurst(W*.7, H*.4), 350);
   tapHearts(W/2, H*.35, 16);
-  setTimeout(next, 3000);
+  const autoAdvance = setTimeout(next, 3000);
+  $('gBtn').onclick = () => { clearTimeout(autoAdvance); next(); };
 }
 pinInput.addEventListener('input', () => {
   pinInput.value = normPin(pinInput.value); renderPin();
